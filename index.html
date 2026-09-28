@@ -1,0 +1,620 @@
+<!-- PRANK DEMO - Local-only, does NOT transmit data. Reveal that it's a joke immediately after scaring your friend. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#b7b7bb">
+<title>Screen Time</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    background: #b7b7bb;
+    min-height: 100dvh;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    transition: background 0.2s;
+  }
+  body.on-gray { background: #b7b7bb; }
+  body.on-dark { background: #000; }
+  body.on-white { background: #fff; }
+  body.on-hack { background: #000; }
+
+  .app {
+    height: 100dvh;
+    width: 100%;
+    max-width: 430px;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .view {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    opacity: 0; pointer-events: none;
+    transform: translateX(30px);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+    height: 100dvh;
+  }
+  .view.active { opacity: 1; pointer-events: auto; transform: none; }
+  .view.gray { background: #b7b7bb; }
+  .view.dark { background: #000; }
+  .view.white { background: #fff; }
+  .view.hack { background: #000; overflow: hidden; }
+
+  /* ================= TIME LIMIT ================= */
+  .limit-top {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px 0;
+    text-align: center;
+  }
+  .hourglass { margin-top: 9vh; }
+  .limit-title {
+    font-size: 28px; font-weight: 700; color: #000;
+    margin-top: 10px; letter-spacing: -0.4px;
+  }
+  .limit-sub {
+    font-size: 16px; color: #000; margin-top: 8px;
+    line-height: 1.35; font-weight: 400;
+  }
+  .limit-footer {
+    display: flex; flex-direction: column; align-items: center;
+    padding-bottom: 6px;
+  }
+  .btn-ok {
+    width: 150px; height: 44px;
+    background: #007AFF; color: #fff;
+    border: none; border-radius: 22px;
+    font-size: 17px; font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-ok:active { background: #005ecb; }
+  .ask-link {
+    background: none; border: none; cursor: pointer;
+    color: #007AFF; font-size: 17px; font-weight: 400;
+    margin-top: 10px; padding: 6px 12px;
+  }
+  .ask-link:active { opacity: 0.4; }
+
+  .sheet-backdrop {
+    position: absolute; inset: 0; z-index: 5;
+    background: transparent;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .sheet-backdrop.show { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: absolute; left: 8px; right: 8px; bottom: 26px; z-index: 6;
+    transform: translateY(calc(100% + 40px));
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .sheet.show { transform: translateY(0); }
+  .sheet-card {
+    background: rgba(255,255,255,0.98);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .sheet-card + .sheet-card { margin-top: 8px; }
+  .sheet-row {
+    display: block; width: 100%;
+    background: none; border: none; cursor: pointer;
+    font-size: 20px; font-weight: 400; color: #007AFF;
+    text-align: center;
+    padding: 17px 10px;
+    letter-spacing: -0.2px;
+  }
+  .sheet-row:active { background: rgba(0,0,0,0.06); }
+  .sheet-row + .sheet-row { border-top: 0.5px solid #c6c6c8; }
+
+  .home-bar { display: flex; justify-content: center; padding: 12px 0 9px; flex-shrink: 0; }
+  .home-bar.graybg { background: #b7b7bb; }
+  .home-bar.graybg span { width: 134px; height: 5px; background: #000; border-radius: 3px; }
+  .home-bar.whitebg { background: #fff; }
+  .home-bar.whitebg span { width: 134px; height: 5px; background: #000; border-radius: 3px; }
+  .home-bar.darkbg { background: #000; }
+  .home-bar.darkbg span { width: 134px; height: 5px; background: #fff; border-radius: 3px; }
+  .home-bar.hackbg { background: #000; }
+  .home-bar.hackbg span { width: 134px; height: 5px; background: #0f0; border-radius: 3px; opacity: 0.8; }
+
+  /* ================= PASSCODE (dark) ================= */
+  .nav-bar {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 14px;
+    background: #000; flex-shrink: 0;
+  }
+  .nav-title { color: #fff; font-size: 17px; font-weight: 600; letter-spacing: -0.2px; }
+  .nav-cancel {
+    position: absolute; right: 16px; bottom: 12px;
+    color: #0A84FF; font-size: 17px; font-weight: 400;
+    cursor: pointer; background: none; border: none;
+  }
+  .nav-cancel:active { opacity: 0.5; }
+  .pass-main {
+    flex: 1; background: #000;
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 8vh;
+  }
+  .prompt { color: #fff; font-size: 21px; line-height: 1.32; font-weight: 400; text-align: center; }
+  .dots { display: flex; gap: 24px; margin-top: 28px; }
+  .dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 1.3px solid #d1d1d6;
+    transition: background 0.08s, border-color 0.08s;
+  }
+  .dot.filled { background: #fff; border-color: #fff; }
+  .keypad-wrap { background: #000; padding: 10px 14px 6px; flex-shrink: 0; }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; }
+  .key {
+    background: #2c2c2e; border: none; border-radius: 6px; height: 62px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; color: #fff; user-select: none;
+    transition: background 0.08s; line-height: 1;
+  }
+  .key:active, .key.pressed { background: #48484a; }
+  .key .num { font-size: 28px; font-weight: 300; margin-top: 2px; }
+  .key .letters { font-size: 9px; font-weight: 700; letter-spacing: 2px; color: #aeaeb2; margin-top: 3px; margin-left: 2px; }
+  .key.empty { background: transparent; cursor: default; }
+  .key.delete { background: transparent; }
+  .key.delete:active { opacity: 0.5; }
+
+  /* ================= APPROVED confirmation ================= */
+  .done-content {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(env(safe-area-inset-top, 0px) + 20px) 32px 0;
+    text-align: center;
+  }
+  .check-ring {
+    width: 78px; height: 78px; border-radius: 50%;
+    background: #34C759;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 20vh;
+  }
+  .done-title { font-size: 21px; font-weight: 700; color: #000; margin-top: 16px; }
+  .done-sub { font-size: 15px; color: #6e6e73; margin-top: 6px; }
+  .done-footer { display: flex; flex-direction: column; align-items: center; padding-bottom: 6px; }
+  .btn-pill {
+    width: 200px; height: 46px;
+    background: #007AFF; color: #fff;
+    border: none; border-radius: 23px;
+    font-size: 17px; font-weight: 600; cursor: pointer;
+  }
+  .btn-pill:active { background: #005ecb; }
+
+  /* ================= HACK SCREEN - THE PRANK ================= */
+  .hack-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+    color: #00ff41;
+    position: relative;
+    overflow: hidden;
+  }
+  /* descending gradients background */
+  .hack-content::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: 
+      repeating-linear-gradient(0deg, rgba(0,255,65,0.08) 0px, rgba(0,255,65,0.08) 2px, transparent 2px, transparent 18px),
+      linear-gradient(180deg, #001a06 0%, #000 60%, #001a06 100%);
+    animation: descend 1.2s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes descend {
+    0% { transform: translateY(-18px); }
+    100% { transform: translateY(0); }
+  }
+  .hack-inner { position: relative; z-index: 1; }
+  .hack-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid #00ff41; color: #00ff41;
+    font-size: 11px; letter-spacing: 1.8px; font-weight: 800;
+    padding: 6px 10px; border-radius: 4px;
+    background: rgba(0,255,65,0.09);
+    box-shadow: 0 0 12px rgba(0,255,65,0.35);
+  }
+  .hack-badge .blink {
+    width: 8px; height: 8px; background: #ff3b30; border-radius: 50%;
+    box-shadow: 0 0 8px #ff3b30;
+    animation: blink 0.7s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .hack-title {
+    margin-top: 18px;
+    font-size: 20px; font-weight: 900;
+    letter-spacing: -0.5px;
+    line-height: 1.05;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(0,255,65,0.7);
+  }
+  .hack-title span { color: #fff; background: #00ff41; color: #000; padding: 1px 6px; }
+  .hack-log {
+    margin-top: 16px;
+    font-size: 13px; line-height: 1.5;
+    opacity: 0.95;
+  }
+  .hack-log .line { opacity: 0; transform: translateY(4px); animation: lineIn 0.25s forwards; }
+  .hack-log .line:nth-child(1){ animation-delay: 0.15s; }
+  .hack-log .line:nth-child(2){ animation-delay: 0.45s; }
+  .hack-log .line:nth-child(3){ animation-delay: 0.75s; }
+  .hack-log .line:nth-child(4){ animation-delay: 1.05s; }
+  .hack-log .line:nth-child(5){ animation-delay: 1.35s; }
+  @keyframes lineIn { to { opacity: 1; transform: none; } }
+  .hack-log em { color: #fff; font-style: normal; text-shadow: 0 0 6px rgba(255,255,255,0.6); }
+
+  .ip-box {
+    margin-top: 18px;
+    border: 1.5px solid #00ff41;
+    border-radius: 12px;
+    background: rgba(0,255,65,0.07);
+    padding: 14px 14px 12px;
+    box-shadow: 0 0 18px rgba(0,255,65,0.25), inset 0 0 18px rgba(0,255,65,0.08);
+    position: relative;
+    overflow: hidden;
+  }
+  .ip-box::after {
+    content:"";
+    position:absolute; inset: 0;
+    background: linear-gradient(180deg, transparent, rgba(0,255,65,0.09), transparent);
+    animation: scan 1.6s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes scan { 0%{ transform: translateY(-100%);} 100%{ transform: translateY(100%);} }
+  .ip-label { font-size: 11px; letter-spacing: 1.4px; opacity: 0.85; }
+  .ip-value {
+    margin-top: 6px;
+    font-size: 30px; font-weight: 900; letter-spacing: 1px;
+    color: #fff;
+    text-shadow: 0 0 12px rgba(0,255,65,0.9);
+    word-break: break-all;
+  }
+  .ip-sub { margin-top: 6px; font-size: 12px; opacity: 0.8; line-height: 1.35; }
+
+  .hack-reveal {
+    margin-top: 16px;
+    background: #fff; color: #000;
+    border-radius: 12px;
+    padding: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    text-align: center;
+    transform: scale(0.96); opacity: 0;
+    transition: all 0.35s cubic-bezier(0.34,1.26,0.64,1);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+  }
+  .hack-reveal.show { transform: scale(1); opacity: 1; }
+  .hack-reveal b { font-size: 16px; }
+  .hack-reveal p { font-size: 13.5px; color: #333; margin-top: 6px; line-height: 1.35; }
+  .hack-reveal .mini { font-size: 11px; color: #888; margin-top: 8px; }
+  .btn-hack {
+    margin-top: 12px;
+    width: 100%; height: 44px;
+    background: #000; color: #00ff41;
+    border: 1px solid #00ff41; border-radius: 10px;
+    font-family: ui-monospace, monospace; font-weight: 800; letter-spacing: 1px;
+    cursor: pointer;
+  }
+  .btn-hack:active { background: #00ff41; color: #000; }
+  .btn-hack.white {
+    background: #007AFF; color: #fff; border: none;
+    font-family: -apple-system, sans-serif; letter-spacing: 0;
+  }
+</style>
+</head>
+<body class="on-gray">
+
+<div class="app">
+
+  <!-- SCREEN 1: Time Limit -->
+  <section id="view-limit" class="view gray active">
+    <div class="limit-top">
+      <svg class="hourglass" width="36" height="46" viewBox="0 0 40 48" fill="#000">
+        <rect x="6" y="0" width="28" height="5" rx="2.5"/>
+        <rect x="6" y="43" width="28" height="5" rx="2.5"/>
+        <path d="M10 8 C10 16 18 20 18 24 C18 28 10 32 10 40 L30 40 C30 32 22 28 22 24 C22 20 30 16 30 8 Z"/>
+      </svg>
+      <div class="limit-title">Time Limit</div>
+      <div class="limit-sub">You've reached your limit on <span class="app-name">IXL</span>.</div>
+    </div>
+    <div class="limit-footer">
+      <button class="btn-ok" id="okBtn">OK</button>
+      <button class="ask-link" id="askBtn">Ask For More Time</button>
+    </div>
+
+    <div class="sheet-backdrop" id="sheetBackdrop"></div>
+
+    <div class="sheet" id="sheet-ask">
+      <div class="sheet-card">
+        <button class="sheet-row" id="oneMoreMin">One More Minute</button>
+        <button class="sheet-row" id="enterPassRow">Enter Screen Time Passcode</button>
+      </div>
+      <div class="sheet-card">
+        <button class="sheet-row" data-close>Cancel</button>
+      </div>
+    </div>
+
+    <div class="sheet" id="sheet-approve">
+      <div class="sheet-card">
+        <button class="sheet-row" data-duration="15 Minutes">Approve for 15 Minutes</button>
+        <button class="sheet-row" data-duration="30 Minutes">Approve for 30 Minutes</button>
+        <button class="sheet-row" data-duration="1 Hour">Approve for 1 Hour</button>
+        <button class="sheet-row" id="dontApprove">Don't Approve</button>
+      </div>
+      <div class="sheet-card">
+        <button class="sheet-row" data-close>Cancel</button>
+      </div>
+    </div>
+
+    <div class="home-bar graybg"><span></span></div>
+  </section>
+
+  <!-- SCREEN 2: Enter Screen Time Passcode -->
+  <section id="view-passcode" class="view dark">
+    <div class="nav-bar">
+      <div class="nav-title">Enter Passcode</div>
+      <button class="nav-cancel" id="cancelPass">Cancel</button>
+    </div>
+    <div class="pass-main">
+      <div class="prompt">Enter Screen Time<br>Passcode</div>
+      <div class="dots" id="dots">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+      <div id="prankHint" style="margin-top:18px;font-size:11px;color:#666;letter-spacing:0.4px;opacity:0;">saved locally • type 1111 to trigger</div>
+    </div>
+    <div class="keypad-wrap">
+      <div class="keypad">
+        <button class="key" data-key="1"><span class="num">1</span><span class="letters">&nbsp;</span></button>
+        <button class="key" data-key="2"><span class="num">2</span><span class="letters">ABC</span></button>
+        <button class="key" data-key="3"><span class="num">3</span><span class="letters">DEF</span></button>
+        <button class="key" data-key="4"><span class="num">4</span><span class="letters">GHI</span></button>
+        <button class="key" data-key="5"><span class="num">5</span><span class="letters">JKL</span></button>
+        <button class="key" data-key="6"><span class="num">6</span><span class="letters">MNO</span></button>
+        <button class="key" data-key="7"><span class="num">7</span><span class="letters">PQRS</span></button>
+        <button class="key" data-key="8"><span class="num">8</span><span class="letters">TUV</span></button>
+        <button class="key" data-key="9"><span class="num">9</span><span class="letters">WXYZ</span></button>
+        <div class="key empty"></div>
+        <button class="key" data-key="0"><span class="num">0</span><span class="letters">&nbsp;</span></button>
+        <button class="key delete" id="delKey" aria-label="delete">
+          <svg width="32" height="24" viewBox="0 0 30 22" fill="none" stroke="#fff" stroke-width="1.2">
+            <path d="M10 1 L28 1 Q29 1 29 3 L29 19 Q29 21 28 21 L10 21 L1 11 L10 1 Z"/>
+            <path d="M11.5 8.5 L17.5 14.5 M17.5 8.5 L11.5 14.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="home-bar darkbg"><span></span></div>
+  </section>
+
+  <!-- SCREEN 3: Approved -->
+  <section id="view-done" class="view white">
+    <div class="done-content">
+      <div class="check-ring">
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
+      </div>
+      <div class="done-title">Approved</div>
+      <div class="done-sub" id="doneSub">IXL unlocked for 1 Hour.</div>
+    </div>
+    <div class="done-footer">
+      <button class="btn-pill" id="doneOk">OK</button>
+    </div>
+    <div class="home-bar whitebg"><span></span></div>
+  </section>
+
+  <!-- SCREEN 4: HACK PRANK (triggered by 1111) -->
+  <section id="view-hack" class="view hack">
+    <div class="hack-content">
+      <div class="hack-inner">
+        <div class="hack-badge"><span class="blink"></span> MAIN FRAME BREACH DETECTED</div>
+        <div class="hack-title">Descending gradients<br><span>hacking into the main frame...</span></div>
+
+        <div class="hack-log" id="hackLog">
+          <div class="line">> Injecting payload... <em>OK</em></div>
+          <div class="line">> Bypassing Screen Time firewall... <em>OK</em></div>
+          <div class="line">> Tracing device... <em>OK</em></div>
+          <div class="line">> Extracting IP address... <em>FOUND</em></div>
+        </div>
+
+        <div class="ip-box">
+          <div class="ip-label">HERE IS YOUR IP ADDRESS</div>
+          <div class="ip-value" id="fakeIp">-.-.-.-</div>
+          <div class="ip-sub" id="ipSub">Location triangulated. Connection compromised.</div>
+        </div>
+
+        <div class="hack-reveal" id="hackReveal">
+          <b>😂 GOTCHA! It's a prank!</b>
+          <p>That's not your IP!<br>That's the <b>Screen Time passcode</b> you entered earlier: <b id="revealCode" style="font-size:18px; letter-spacing:2px;">----</b></p>
+          <p style="color:#666;">It was saved <b>locally on this device only</b> — it was never sent anywhere. Your friend just made the site show it back as a fake “IP”.</p>
+          <p class="mini">Tip: Tell your friend immediately that it was a joke. Don't use real passwords here.</p>
+          <button class="btn-hack white" id="hackOk">LOL OK, take me back</button>
+          <button class="btn-hack" id="hackReset" style="margin-top:8px; background:transparent; font-size:12px; opacity:0.8;">Reset saved code</button>
+        </div>
+
+        <!-- spacer to push home bar down when reveal hidden -->
+        <div style="height: 18px;"></div>
+      </div>
+    </div>
+    <div class="home-bar hackbg"><span></span></div>
+  </section>
+
+</div>
+
+<script>
+  const APP_NAME = "IXL";
+  document.querySelectorAll('.app-name').forEach(el => el.textContent = APP_NAME);
+
+  const views = {
+    limit: document.getElementById('view-limit'),
+    passcode: document.getElementById('view-passcode'),
+    done: document.getElementById('view-done'),
+    hack: document.getElementById('view-hack')
+  };
+  const sheetAsk = document.getElementById('sheet-ask');
+  const sheetApprove = document.getElementById('sheet-approve');
+  const backdrop = document.getElementById('sheetBackdrop');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+
+  function setTheme(name) {
+    document.body.classList.toggle('on-dark', name === 'passcode');
+    document.body.classList.toggle('on-white', name === 'done');
+    document.body.classList.toggle('on-gray', name === 'limit');
+    document.body.classList.toggle('on-hack', name === 'hack');
+    if(name === 'passcode') themeMeta.content = '#000000';
+    else if(name === 'done') themeMeta.content = '#ffffff';
+    else if(name === 'hack') themeMeta.content = '#000000';
+    else themeMeta.content = '#b7b7bb';
+  }
+  function showView(name) {
+    Object.values(views).forEach(v => v.classList.remove('active'));
+    views[name].classList.add('active');
+    setTheme(name);
+  }
+  function openSheet(which) {
+    sheetAsk.classList.toggle('show', which === 'ask');
+    sheetApprove.classList.toggle('show', which === 'approve');
+    backdrop.classList.add('show');
+  }
+  function closeSheets() {
+    sheetAsk.classList.remove('show');
+    sheetApprove.classList.remove('show');
+    backdrop.classList.remove('show');
+  }
+
+  document.getElementById('askBtn').addEventListener('click', () => openSheet('ask'));
+  document.getElementById('okBtn').addEventListener('click', (e) => {
+    const b = e.currentTarget;
+    b.style.transform = 'scale(0.94)';
+    setTimeout(() => b.style.transform = '', 120);
+  });
+  backdrop.addEventListener('click', closeSheets);
+  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheets));
+
+  document.getElementById('enterPassRow').addEventListener('click', () => {
+    closeSheets();
+    clearCode();
+    showView('passcode');
+  });
+  document.getElementById('oneMoreMin').addEventListener('click', () => {
+    closeSheets();
+    document.getElementById('doneSub').textContent = `${APP_NAME} unlocked for one more minute.`;
+    showView('done');
+  });
+
+  // --- PRANK LOGIC ---
+  // Local-only storage. Never transmitted.
+  let savedCode = localStorage.getItem('prank_saved_code') || '';
+  const dots = document.querySelectorAll('.dot');
+  let code = '';
+  function render() { dots.forEach((d, i) => d.classList.toggle('filled', i < code.length)); }
+  function clearCode() { code = ''; render(); }
+  document.getElementById('cancelPass').addEventListener('click', () => showView('limit'));
+
+  function triggerHack() {
+    // Build a fake-looking IP from the saved passcode
+    // Example: passcode 5829 -> "58.29.82.95" -> but we make it obvious it's the passcode
+    // We will show: "58.29" + " • " + passcode style and also full dot-joined version
+    const sc = savedCode || '----';
+    // Make a fake IP that is *visibly* the passcode: 5.8.2.9
+    const fakeIpDotted = sc.split('').join('.');
+    // Add extra octets to look more real but keep passcode prominent
+    const fakeIpFull = `${sc.slice(0,2)}.${sc.slice(2)}.${sc[0]}${sc[1]}.${sc[2]}${sc[3]}`;
+    // Show dotted single digits as main, to make the troll clear once revealed
+    document.getElementById('fakeIp').textContent = fakeIpDotted;
+    document.getElementById('revealCode').textContent = sc;
+    document.getElementById('ipSub').textContent = `Device: iPhone • Passcode trace: ${fakeIpFull} (spoofed)`;
+
+    // reset reveal animation
+    const reveal = document.getElementById('hackReveal');
+    reveal.classList.remove('show');
+    // reset log animation by re-cloning
+    const log = document.getElementById('hackLog');
+    log.style.display = 'none';
+    void log.offsetWidth;
+    log.style.display = '';
+
+    showView('hack');
+
+    // vibrate if supported for scare effect
+    if(navigator.vibrate) navigator.vibrate([80,40,80,40,120]);
+
+    // After a scary pause, reveal it's a prank
+    setTimeout(() => {
+      reveal.classList.add('show');
+      if(navigator.vibrate) navigator.vibrate(40);
+    }, 2100);
+  }
+
+  document.querySelectorAll('.key[data-key]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!views.passcode.classList.contains('active')) return;
+      if (code.length >= 4) return;
+      code += btn.dataset.key;
+      render();
+      btn.classList.add('pressed');
+      setTimeout(() => btn.classList.remove('pressed'), 100);
+      if (code.length === 4) {
+        const entered = code;
+        setTimeout(() => {
+          // TRIGGER: 1111 after a code has been saved
+          if (entered === '1111' && savedCode && savedCode !== '1111') {
+            clearCode();
+            triggerHack();
+            return;
+          }
+          // Normal flow: save the entered code locally (overwrite)
+          // Don't save 1111 as a real passcode if it's the trigger
+          if (entered !== '1111') {
+            savedCode = entered;
+            try { localStorage.setItem('prank_saved_code', savedCode); } catch(e){}
+          }
+          showView('limit');
+          setTimeout(() => openSheet('approve'), 180);
+          setTimeout(clearCode, 350);
+        }, 280);
+      }
+    });
+  });
+  document.getElementById('delKey').addEventListener('click', () => { code = code.slice(0, -1); render(); });
+  document.addEventListener('keydown', (e) => {
+    if (!views.passcode.classList.contains('active')) return;
+    if (/^[0-9]$/.test(e.key)) {
+      const btn = document.querySelector(`.key[data-key="${e.key}"]`);
+      if (btn) btn.click();
+    } else if (e.key === 'Backspace') {
+      document.getElementById('delKey').click();
+    } else if (e.key === 'Escape') { showView('limit'); }
+  });
+
+  document.querySelectorAll('[data-duration]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      closeSheets();
+      document.getElementById('doneSub').textContent = `${APP_NAME} unlocked for ${btn.dataset.duration}.`;
+      showView('done');
+    });
+  });
+  document.getElementById('dontApprove').addEventListener('click', closeSheets);
+  document.getElementById('doneOk').addEventListener('click', () => showView('limit'));
+
+  // Hack screen buttons
+  document.getElementById('hackOk').addEventListener('click', () => showView('limit'));
+  document.getElementById('hackReset').addEventListener('click', () => {
+    savedCode = '';
+    try { localStorage.removeItem('prank_saved_code'); } catch(e){}
+    alert('Saved passcode cleared from this device.');
+    showView('limit');
+  });
+
+  // Optional: show hint in console for tester (not visible to friend)
+  console.log('%cPrank ready:','color:#00ff41;font-weight:900', 'Enter any 4-digit code, then re-open Enter Passcode and type 1111 to trigger the hack screen. Saved code stays in localStorage only.');
+</script>
+</body>
+</html>
